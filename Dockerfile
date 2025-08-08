@@ -7,7 +7,6 @@ WORKDIR /app
 # Copia los archivos necesarios al contenedor
 COPY requirements.txt .
 COPY main.py .
-COPY .env .
 
 # Instala las dependencias del proyecto
 RUN pip install --no-cache-dir -r requirements.txt
