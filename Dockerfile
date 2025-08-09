@@ -10,7 +10,6 @@ COPY main.py .
 COPY Prueba.py .
 COPY download.py .
 
-
 # Copia carpetas si las necesitas dentro del contenedor
 COPY uploads ./uploads
 COPY videos ./videos
@@ -26,8 +25,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Instala Uvicorn si no está en requirements.txt
 RUN pip install --no-cache-dir uvicorn
 
-# Expón el puerto
+# Expón el puerto (Render lo ignora, pero es útil localmente)
 EXPOSE 8000
 
-# Ejecuta el servidor FastAPI con Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT}"]
+# Usar shell form para que $PORT se expanda correctamente
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
