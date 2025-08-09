@@ -10,6 +10,11 @@ COPY main.py .
 COPY Prueba.py .
 COPY download.py .
 
+
+# Copia carpetas si las necesitas dentro del contenedor
+COPY uploads ./uploads
+COPY videos ./videos
+
 # Instala dependencias del sistema para OpenCV
 RUN apt-get update && \
     apt-get install -y libgl1-mesa-glx libglib2.0-0 ffmpeg && \
@@ -18,8 +23,11 @@ RUN apt-get update && \
 # Instala las dependencias del proyecto
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expón el puerto si es necesario (opcional)
-# EXPOSE 8000
+# Instala Uvicorn si no está en requirements.txt
+RUN pip install --no-cache-dir uvicorn
 
-# Ejecuta el script principal
-CMD ["python", "main.py"]
+# Expón el puerto
+EXPOSE 8000
+
+# Ejecuta el servidor FastAPI con Uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
