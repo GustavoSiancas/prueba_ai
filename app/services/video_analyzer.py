@@ -124,7 +124,7 @@ def comparar_descripcion_con_resumen_ia(descripcion, resumen):
 	prompt = (
 		f"A continuación, compara una descripción de campaña con un resumen generado desde un video. "
 		f"Quiero que me devuelvas la comparación en formato JSON estricto, con tres campos: \n"
-		f'{"match_percent": "...","aproved": "...", "reasons": "..."}\n\n'
+		'{"match_percent": "...","aproved": "...", "reasons": "..."}\n\n'
 		 f'El campo "aproved" debe ser true si el porcentaje de match es mayor o igual a 70, y false en caso contrario.\n\n'
 		f"Descripción de campaña:\n\"{descripcion}\"\n\n"
 		f"Resumen del video:\n\"{resumen}\"\n\n"
