@@ -4,13 +4,16 @@ import os
 def descargar_video(url, output_folder="videos"):
 	if not os.path.exists(output_folder):
 		os.makedirs(output_folder)
+
 	output_path = os.path.join(output_folder, "%(title)s.%(ext)s")
+	
 	ydl_opts = {
 		'outtmpl': output_path,
 		'format': 'mp4/bestvideo+bestaudio/best',
 		'merge_output_format': 'mp4',
 		'quiet': False
 	}
+	
 	try:
 		with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 			print(f"⬇️ Descargando video desde: {url}")

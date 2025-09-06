@@ -22,3 +22,7 @@ __pycache__/
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+
+videos/
+video_frames/
+video_audio.mp3
