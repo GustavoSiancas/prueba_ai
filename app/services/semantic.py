@@ -21,6 +21,6 @@ def summarize_video_textual(resumen_visual: str | None, transcript: str | None):
     if resumen_visual: parts.append(resumen_visual)
     if transcript: parts.append("TRANSCRIPCIÓN: " + transcript)
     if not parts: return ""
-    # recorta si es demasiado largo (embeddings tienen límite)
+    
     text = "\n".join(parts)
     return text[:6000]

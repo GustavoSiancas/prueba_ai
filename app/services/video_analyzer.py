@@ -155,26 +155,58 @@ def analyze_video_with_chatgpt(video_path):
 		_cleanup()
 
 
-def comparar_descripcion_con_resumen_ia(descripcion, resumen):
-	prompt = (
-		f"A continuación, compara una descripción de campaña con un resumen generado desde un video. "
-		f"Quiero que me devuelvas la comparación en formato JSON estricto, con tres campos: \n"
-		'{"match_percent": "...","aproved": "...", "reasons": "..."}\n\n'
-		f'El campo "aproved" debe ser true si el porcentaje de match es mayor o igual a 70, y false en caso contrario.\n\n'
-		f"Descripción de campaña:\n\"{descripcion}\"\n\n"
-		f"Resumen del video:\n\"{resumen}\"\n\n"
-		f"Evalúa qué tanto se alinean ambos textos considerando tono, contenido, duración, objetivos y estilo."
-	)
-	messages = [
-		{"role": "user", "content": prompt}
-	]
-	try:
-		response = client.chat.completions.create(
-			model="gpt-4o",
-			messages=messages,
-			response_format={"type": "json_object"}, 
-		)
-		return response.choices[0].message.content
-	except Exception as e:
-		print(f"Error al comparar descripción y resumen con la IA: {e}")
-		return None
+def comparar_descripcion_con_resumen_ia(descripcion, resumen, umbral_aprobacion: int = 70):
+    """
+    Evalúa SOLO los requisitos explícitos de la campaña contra el resumen del video.
+    No penaliza elementos adicionales que el video tenga y la campaña no pide.
+    match_percent (0..100) = (met + 0.5*partial) / total * 100
+    aproved = true si match_percent >= umbral_aprobacion.
+    reasons: texto fluido en 2–3 oraciones, sin listas ni encabezados.
+    """
+
+    prompt = f"""
+	Eres un evaluador ESTRICTO de cumplimiento de campaña.
+	Compara el video ÚNICAMENTE respecto a lo que la campaña PIDE.
+	Ignora y NO penalices elementos extra del video que NO estén en los requisitos.
+	No inventes, no des consejos, no agregues información ajena a los requisitos.
+
+	PASOS (internos, no los muestres):
+	1) Extrae una lista corta de REQUISITOS atómicos a partir de la descripción de campaña.
+	2) Para cada requisito, clasifícalo como: "met" (cumple), "partial" (parcial) o "not_met" (no cumple) usando EXCLUSIVAMENTE el resumen del video.
+	3) Calcula:
+    - total = número de requisitos
+    - met_count = #met
+    - partial_count = #partial
+    - match_percent = round((met_count + 0.5*partial_count) / max(total,1) * 100, 2)
+    - aproved = true si match_percent >= {umbral_aprobacion}, en caso contrario false
+	4) Genera "reasons" como un párrafo FLUIDO (2–3 oraciones) que:
+    - resuma qué requisitos se cumplen y cuáles faltan o son parciales,
+    - use lenguaje natural (sin listas, sin "Cumple:/Parcial:/Falta:"),
+    - no mencione nada que la campaña no pidió.
+
+	ENTRADAS
+	Descripción de campaña:
+	\"\"\"{descripcion}\"\"\"
+
+	Resumen del video:
+	\"\"\"{resumen}\"\"\"
+
+	SALIDA OBLIGATORIA (JSON ESTRICTO):
+	{{
+		"match_percent": 0-100,
+		"aproved": true/false,
+		"reasons": "texto fluido de 2–3 oraciones en español, sin listas ni encabezados"
+	}}
+    """.strip()
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.2
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error al comparar descripción y resumen con la IA: {e}")
+        return None
