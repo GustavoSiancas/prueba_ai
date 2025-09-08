@@ -5,7 +5,7 @@ def _dhash(image_bgr, hash_size=8):
     """Devuelve vector booleano de 64 bits (8x8) con diferencias horizontales."""
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     resized = cv2.resize(gray, (hash_size + 1, hash_size), interpolation=cv2.INTER_AREA)
-    diff = resized[:, 1:] > resized[:, :-1]  # shape (8,8) -> 64 bits
+    diff = resized[:, 1:] > resized[:, :-1]
     return diff.flatten()
 
 def _hamming(a: np.ndarray, b: np.ndarray) -> int:
@@ -35,10 +35,10 @@ def video_fingerprint(path: str, seconds_interval: float = 5.0, max_frames: int 
     if not hashes:
         return None
 
-    arr = np.stack(hashes).astype(np.int8)  # (n_frames, 64)
-    # mayoritario por columna -> fingerprint final de 64 bits
+    arr = np.stack(hashes).astype(np.int8)
+
     votes = arr.sum(axis=0) >= (arr.shape[0] / 2.0)
-    return votes.astype(np.uint8)  # vector de 64 (0/1)
+    return votes.astype(np.uint8)
 
 def similarity_percent(fp1, fp2) -> float:
     if fp1 is None or fp2 is None:
@@ -60,14 +60,14 @@ def frame_hash_sequence(path: str, seconds_interval: float = 2.0, max_frames: in
         cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
         ok, frame = cap.read()
         if not ok: break
-        # dHash
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         resized = cv2.resize(gray, (hash_size + 1, hash_size), interpolation=cv2.INTER_AREA)
         diff = resized[:, 1:] > resized[:, :-1]
-        seq.append(diff.flatten())  # 64 bools
+        seq.append(diff.flatten())
         t += seconds_interval
     cap.release()
-    return np.array(seq, dtype=np.bool_)  # shape (n, 64)
+    return np.array(seq, dtype=np.bool_)
 
 def sequence_match_percent(seqA: np.ndarray, seqB: np.ndarray, bit_tolerance: int = 5, window: int = 2):
     """
@@ -80,14 +80,16 @@ def sequence_match_percent(seqA: np.ndarray, seqB: np.ndarray, bit_tolerance: in
         return 0.0
     matches = 0
     for i, hA in enumerate(seqA):
-        # ventana alrededor de i en B
         start = max(0, i - window)
         end = min(len(seqB), i + window + 1)
-        best = 65  # mayor que 64
+        best = 65
+
         for j in range(start, end):
             dist = int(np.count_nonzero(hA != seqB[j]))
             if dist < best:
                 best = dist
+
         if best <= bit_tolerance:
             matches += 1
+
     return round(100.0 * matches / len(seqA), 2)
