@@ -33,8 +33,12 @@ class Settings(BaseSettings):
     # Modo de resumen
     SUMMARY_MODE: str = "free"  # "free" | "hybrid"
 
+    # Activar/desactivar BudgetGuardRails
+    BUDGET_GUARDRAILS_ENABLED: bool = False
+
     class Config:
         env_file = ".env"
+
 
 @lru_cache
 def get_settings() -> Settings:

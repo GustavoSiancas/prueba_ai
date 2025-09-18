@@ -10,7 +10,6 @@ from app.infrastructure.cv.phash import video_fingerprint, similarity_percent
 from app.infrastructure.cv.sequence import frame_hash_sequence, sequence_match_percent, get_duration_s
 from app.infrastructure.nlp.vlm_summary import (
     analyze_video_free_narrative,
-    analyze_video_hybrid,
     summarize_video_textual,
 )
 from app.infrastructure.nlp.align_judge import comparar_descripcion_con_resumen_ia
@@ -60,11 +59,13 @@ class EvaluateService:
             EvaluateResponse listo para el cliente.
         """
 
-        guard = BudgetGuardrails(
-            usd_day_cap=self.settings.USD_DAY_CAP,
-            max_llm_calls=self.settings.MAX_LLM_CALLS,
-            max_emb_calls=self.settings.MAX_EMB_CALLS
-        )
+        guard = None
+        if self.settings.BUDGET_GUARDRAILS_ENABLED:
+            guard = BudgetGuardrails(
+                usd_day_cap=self.settings.USD_DAY_CAP,
+                max_llm_calls=self.settings.MAX_LLM_CALLS,
+                max_emb_calls=self.settings.MAX_EMB_CALLS
+            )
 
         root, frames_dir, audio_dir = self._mktemp()
         try:
@@ -185,10 +186,14 @@ class EvaluateService:
                     )
 
             # 2) Presupuesto y posible degradación
-            decision = guard.decide(req.campaign_id, est_usd=0.02, need={"llm": 1, "emb": 0})
-            degraded = (decision != "allow")
+            degraded = False
+            if guard is not None:
+                decision = guard.decide(req.campaign_id, est_usd=0.02, need={"llm": 1, "emb": 0})
+                degraded = (decision != "allow")
+            # Si está apagado, 'degraded' siempre es False y seguimos.
+
             if degraded:
-                # Camino barato sin IA cara
+                # Camino barato sin IA (solo si se habilíta)
                 return EvaluateResponse(
                     duplicated=False,
                     duplicate_reason=None,
@@ -212,12 +217,12 @@ class EvaluateService:
                     base_fp = video_fingerprint(base_path, seconds_interval=5.0, max_frames=20)
                     base_seq = frame_hash_sequence(base_path, seconds_interval=2.0, max_frames=60, hash_size=8)
 
-            # 3.a) Resumen VLM (free/hybrid)
-            mode = (self.settings.SUMMARY_MODE or "free").lower()
-            if mode == "hybrid":
-                summary = analyze_video_hybrid(base_path, transcript_text=None, max_frames=self.settings.FRAMES_MAX)
-            else:
-                summary = analyze_video_free_narrative(base_path, transcript_text=None, max_frames=self.settings.FRAMES_MAX)
+            # 3.a) Resumen VLM (sólo free por ahora)
+            summary = analyze_video_free_narrative(
+                base_path,
+                transcript_text=None, # audio desactivado por ahora
+                max_frames=self.settings.FRAMES_MAX
+            )
 
             llm_calls = 1 if summary else 0
             if not summary:
@@ -244,8 +249,9 @@ class EvaluateService:
             except Exception:
                 cmp_json = {"aproved": False, "match_percent": 0.0, "reasons": "Respuesta IA inválida."}
 
-            # 4) Registro de gasto
-            guard.commit(req.campaign_id, spent_usd=0.02 if llm_calls else 0.0, used={"llm": llm_calls, "emb": 0})
+            # 4) Commit de costos solo si el guardrail está activo
+            if guard is not None and llm_calls:
+                guard.commit(req.campaign_id, spent_usd=0.02, used={"llm": llm_calls, "emb": 0})
 
             # 5) Persistir huellas del base si era MISS
             if not cached_base:
