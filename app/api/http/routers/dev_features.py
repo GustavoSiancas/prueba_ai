@@ -1,100 +1,74 @@
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
-from app.infrastructure.settings import get_settings, Settings
-from app.infrastructure.redisdb.indices import (
-    get_features_by_url, recent_candidates, save_video_features as redis_save_features
-)
-from app.infrastructure.pg.dao import pg_get_by_url
+from pydantic import HttpUrl
+
+from app.infrastructure.pg.dao import pg_get_by_url, pg_recent_candidates
 
 router = APIRouter(tags=["_dev"])
 
 """
-Endpoints de soporte (DEV/QA):
-- Exploran features guardadas en Redis (binarios empaquetados) y PG (write-through).
-- Útiles para validar persistencia, tamaños y formas sin traer arrays gigantes por defecto.
+Endpoints de soporte (DEV/QA) – PG-only:
+- Inspecciona lo guardado en Postgres (source of truth).
+- Útil para validar persistencia, tamaños y formas sin devolver arrays gigantes por defecto.
 """
 
 @router.get(
     "/_dev/features",
-    summary="Inspección de features (Redis/PG)",
+    summary="Inspección de features en Postgres",
     description=(
-        "Lee features por `url` o lista `k` recientes de una campaña.\n\n"
+        "Lee features por `url` o lista `limit` recientes de una campaña, **desde Postgres**.\n\n"
         "**Cuando pasas `url`:**\n"
-        "- Busca en Redis; si MISS y `PG_ENABLED=true`, trae de PG y repuebla Redis.\n"
         "- Devuelve tamaños/shape y, en `raw`, los arrays ya decodificados (¡sólo para QA!).\n\n"
         "**Cuando NO pasas `url`:**\n"
         "- Lista hasta `limit` recientes (sin arrays) para payloads livianos."
     ),
     responses={
         200: {"description": "OK – Resultado de inspección."},
-        404: {"description": "No existe entrada para la URL indicada en Redis/PG."},
+        404: {"description": "No existe entrada para la URL indicada en Postgres."},
     },
 )
 def dev_features(
     campaign_id: str = Query(..., description="ID de campaña"),
-    url: Optional[str] = Query(None, description="URL exacta del video"),
-    limit: int = Query(10, ge=1, le=100, description="Cuántos recientes listar si no pasas URL"),
-    settings: Settings = Depends(get_settings),
+    url: Optional[HttpUrl] = Query(None, description="URL exacta del video"),
+    limit: int = Query(10, ge=1, le=100, description="Cuántos recientes listar si no pasas URL")
 ):
     """
-    Devuelve features guardadas.
-    - Si `url` existe: intenta Redis; si MISS y hay PG, intenta PG y repuebla Redis.
+    Devuelve features guardadas en Postgres.
+    - Si `url` existe: retorna huella completa (tamaños + `raw` con arrays decodificados).
     - Si NO hay `url`: lista recientes (sin arrays grandes).
     """
     if url:
-        res = get_features_by_url(campaign_id, url)
+        rec = pg_get_by_url(str(url))
+        if not rec:
+            raise HTTPException(status_code=404, detail="No hay features en Postgres para esa URL.")
 
-        # Fallback a PG + repoblado de Redis
-        if not res and getattr(settings, "PG_ENABLED", False):
-            rec = pg_get_by_url(url)
-            if rec:
-                try:
-                    redis_save_features(
-                        campaign_id=campaign_id,
-                        video_url=rec["url"],
-                        phash64_bits=rec["phash64"],
-                        seq_bits=rec["seq_sig"],
-                        duration_s=rec["duration_s"],
-                    )
-                except Exception as e:
-                    print(f"[warn] repoblar Redis desde PG: {e}")
-                res = rec
-
-        if not res:
-            raise HTTPException(status_code=404, detail="No hay features en Redis/PG para esa URL.")
-
-        video_id, feat = res["video_id"], res
-
-        # Formas
-        phash_len = len(feat.get("phash64", []))
-        seq = feat.get("seq_sig", [])
+        ph = rec.get("phash64", [])
+        seq = rec.get("seq_sig", [])
+        phash_len = len(ph)
         seq_shape = [len(seq), len(seq[0]) if len(seq) > 0 else 0]
 
-        # JSON-friendly (np.ndarray -> list)
-        phash_json = feat.get("phash64")
-        if hasattr(phash_json, "tolist"):
-            phash_json = phash_json.tolist()
-        seq_json = feat.get("seq_sig")
-        if hasattr(seq_json, "tolist"):
-            seq_json = seq_json.tolist()
+        ph_json = ph.tolist() if hasattr(ph, "tolist") else ph
+        seq_json = seq.tolist() if hasattr(seq, "tolist") else seq
 
         return {
-            "video_id": video_id,
-            "url": feat.get("url"),
-            "duration_s": feat.get("duration_s"),
+            "video_id": rec.get("video_id"),
+            "url": rec.get("url"),
+            "duration_s": rec.get("duration_s"),
             "phash_bits": phash_len,
             "seq_bits_shape": seq_shape,
-            "raw": {"phash64": phash_json, "seq_sig": seq_json},
+            "raw": {"phash64": ph_json, "seq_sig": seq_json},
         }
 
-    # Recientes (sin arrays para payload ligero)
-    items = recent_candidates(campaign_id, k=limit)
+        # Recientes (sin blobs)
+    items = pg_recent_candidates(campaign_id, k=limit)
+    out = []
     for it in items:
-        ph = it.get("phash64", [])
-        it["phash_bits"] = len(ph)
-        seq = it.get("seq_sig", [])
-        it["seq_bits_shape"] = [len(seq), len(seq[0]) if len(seq) > 0 else 0]
-        it.pop("phash64", None)
-        it.pop("seq_sig", None)
-
-    return {"count": len(items), "items": items}
+        out.append({
+            "video_id": it["video_id"],
+            "url": it["url"],
+            "duration_s": it["duration_s"],
+            "phash_bits": it.get("phash_bits", 64),
+            "seq_bits_shape": [it.get("seq_rows", 0), it.get("seq_cols", 0)],
+            "created_at": it.get("created_at"),
+        })
+    return {"count": len(out), "items": out}

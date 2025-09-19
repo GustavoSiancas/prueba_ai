@@ -52,3 +52,35 @@ def pg_get_by_url(url: str):
         "seq_sig": unpack_bool_bits(bytes(seq_b), rows, cols),
         "duration_s": float(duration_s),
     }
+
+def pg_recent_candidates(campaign_id: str, k: int = 50):
+    """
+    Devuelve SOLO metadatos ligeros de los más recientes:
+    - video_id, url, duration_s, seq_rows, seq_cols, created_at
+    (No trae phash64/seq_sig para no mover blobs.)
+    """
+    with get_pool().connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT video_id, url, duration_s, seq_rows, seq_cols, created_at
+            FROM video_features
+            WHERE campaign_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (campaign_id, k)
+        )
+        rows = cur.fetchall()
+
+    out = []
+    for video_id, url, duration_s, seq_rows, seq_cols, created_at in rows:
+        out.append({
+            "video_id": video_id,
+            "url": url,
+            "duration_s": float(duration_s),
+            "seq_rows": int(seq_rows),
+            "seq_cols": int(seq_cols),
+            "phash_bits": 64,
+            "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at),
+        })
+    return out
