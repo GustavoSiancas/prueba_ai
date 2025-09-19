@@ -10,10 +10,8 @@ Resumen visual del video (sin ASR):
 
 def _uniform_keyframes(video_path: str, max_frames: int = 16, scale=640):
     """
-    Extrae frames uniformemente espaciados, reescalados y comprimidos a JPEG base64.
-
-    Returns:
-        lista[str base64] de hasta `max_frames` frames.
+    Extrae frames uniformes, reescala y comprime a JPEG base64 (calidad ~65).
+    Devuelve lista[str base64] de hasta `max_frames`.
     """
 
     cap = cv2.VideoCapture(video_path)
@@ -37,10 +35,8 @@ def _uniform_keyframes(video_path: str, max_frames: int = 16, scale=640):
 
 def analyze_video_free_narrative(video_path: str, transcript_text: str | None = None, max_frames: int = 16) -> str:
     """
-    Devuelve un texto descriptivo (120–200 palabras) basado SOLO en lo visible
-    en los frames (y en transcript_text si se provee).
-
-    No inventar idiomas de subtítulos ni layout si no es evidente.
+    Prompt de narrativa libre (120–200 palabras) con frames + texto opcional.
+    Usa gpt-4o con mensajes de tipo `image_url` (data-URL base64).
     """
 
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -74,14 +70,7 @@ def analyze_video_free_narrative(video_path: str, transcript_text: str | None = 
     return resp.choices[0].message.content.strip()
 
 def analyze_video_hybrid(video_path: str, transcript_text: str | None = None, max_frames: int = 16) -> dict:
-    """
-    Devuelve JSON con:
-      - narrative (120–200 palabras),
-      - events/people/objects/locations/topics/heard_phrases (listas),
-      - layout_hints: {facecam_top, gameplay_bottom, subtitles:{present, language}}.
-
-    Reglas: usar sólo evidencia clara; si no es visible/oyible, 'desconocido'.
-    """
+    """Normaliza a texto compacto: si dict, concatena narrative + layout_hints; si str, trunca."""
 
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     frames = _uniform_keyframes(video_path, max_frames=max_frames)
@@ -125,9 +114,8 @@ def analyze_video_hybrid(video_path: str, transcript_text: str | None = None, ma
 
 def summarize_video_textual(summary) -> str:
     """
-    Normaliza el resumen a texto compacto (<= 6000 chars):
-      - Si summary es dict (hybrid), combina narrative + layout_hints.
-      - Si summary es str (free), lo devuelve truncado.
+    Igual que `analyze_video_free_narrative` pero **sin** depender del .mp4.
+    Recibe directamente frames base64 (ideal para usar cache y no re-descargar).
     """
 
     if summary is None:
@@ -143,3 +131,33 @@ def summarize_video_textual(summary) -> str:
                      f"subtitles.present={lh.get('subtitles',{}).get('present','desconocido')}, "
                      f"subtitles.lang={lh.get('subtitles',{}).get('language','desconocido')}")
     return "\n".join(parts)[:6000]
+
+def analyze_frames_free_narrative(frames_b64: list[str], transcript_text: str | None = None) -> str:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type":"text","text":
+             ("Describe con detalle (120–200 palabras) lo que ocurre en el video, en español, "
+              "basándote SOLO en las imágenes y, si se provee, lo que se oye en el texto. "
+              "Menciona disposición visual si es evidente (p. ej. 'persona en la parte superior' y 'gameplay abajo'). "
+              "Si aparecen subtítulos, indícalo y el idioma solo si se percibe con claridad. No inventes nada.")
+            },
+            {"type":"text","text":"Fotogramas representativos:"}
+        ]
+    }]
+    for b64 in frames_b64:
+        messages[0]["content"].append({
+            "type":"image_url", "image_url":{"url": f"data:image/jpeg;base64,{b64}"}
+        })
+
+    if transcript_text:
+        messages[0]["content"].append({"type":"text","text":f"TEXTO/TRANSCRIPCIÓN:\n{transcript_text[:8000]}"})
+
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        max_tokens=1200,
+        temperature=0.2
+    )
+    return resp.choices[0].message.content.strip()

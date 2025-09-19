@@ -3,7 +3,7 @@ import numpy as np
 
 """
 Huella de secuencia: dHash por frame muestreado uniformemente.
-Sirve para near-duplicates con trims/speedups usando ventana de alineación.
+Diseñada para near-duplicates con trims/speedup usando ventana de alineación temporal.
 """
 
 def get_duration_s(path: str) -> float:
@@ -17,10 +17,7 @@ def get_duration_s(path: str) -> float:
 
 def frame_hash_sequence(path: str, seconds_interval: float = 2.0, max_frames: int = 60, hash_size=8):
     """
-    Secuencia de hashes (bool[frames, 64]) muestreando cada `seconds_interval`.
-
-    Returns:
-        np.ndarray dtype=bool con forma (M, 64). Vacío si falla.
+    Devuelve bool[M,64] con hashes por frame muestreado cada `seconds_interval`.
     """
 
     cap = cv2.VideoCapture(path)
@@ -47,14 +44,8 @@ def frame_hash_sequence(path: str, seconds_interval: float = 2.0, max_frames: in
 
 def sequence_match_percent(seqA: np.ndarray, seqB: np.ndarray, bit_tolerance: int = 5, window: int = 2):
     """
-    % de frames de A que encuentran "mejor match" en B dentro de una ventana temporal.
-
-    Args:
-        bit_tolerance: #bits distintos máximos para considerar match (0..64).
-        window: desfase temporal permitido +/-window (para trims/speed).
-
-    Returns:
-        Porcentaje 0..100.
+    % de frames de A que encuentran mejor match en B dentro de una ventana temporal ±`window`.
+    Considera match si Hamming <= `bit_tolerance`.
     """
 
     if seqA.size == 0 or seqB.size == 0:

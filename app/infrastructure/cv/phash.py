@@ -2,12 +2,12 @@ import cv2
 import numpy as np
 
 """
-Huella visual global basada en dHash "mayoritario".
-Se muestrean N frames espaciados y se vota bit a bit (64 bits).
+Huella visual global (64 bits) mediante dHash por voto mayoritario sobre frames muestreados.
+Útil como filtro rápido de duplicados exactos/casi-exactos.
 """
 
 def _dhash(image_bgr, hash_size=8):
-    """Calcula dHash (64 bits) de una imagen BGR."""
+    """Calcula dHash (64 bits) de una imagen BGR (bool flatten)."""
 
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     resized = cv2.resize(gray, (hash_size + 1, hash_size), interpolation=cv2.INTER_AREA)
@@ -21,15 +21,8 @@ def _hamming(a: np.ndarray, b: np.ndarray) -> int:
 
 def video_fingerprint(path: str, seconds_interval: float = 5.0, max_frames: int = 20):
     """
-    Calcula pHash "mayoritario" de un video.
-
-    Args:
-        path: ruta al .mp4
-        seconds_interval: separación entre frames muestreados.
-        max_frames: máximo de frames a votar.
-
-    Returns:
-        np.ndarray (uint8) de 64 bits (0/1) o None si falla.
+    pHash "mayoritario" de un video (64 bits 0/1 en np.uint8).
+    Muestra `max_frames` espaciados `seconds_interval` y vota bit a bit.
     """
 
     cap = cv2.VideoCapture(path)
@@ -59,12 +52,7 @@ def video_fingerprint(path: str, seconds_interval: float = 5.0, max_frames: int 
     return votes.astype(np.uint8)
 
 def similarity_percent(fp1, fp2) -> float:
-    """
-    Similitud (100 - Hamming%) entre dos pHash64.
-
-    Regla:
-      - Se recorta a la longitud mínima si difieren.
-    """
+    """Similitud en % = 100 - Hamming% (recorta a la longitud mínima si difieren)."""
 
     if fp1 is None or fp2 is None:
         return 0.0

@@ -3,8 +3,10 @@ from typing import Literal
 from .client import redis
 
 """
-Control de gasto y llamadas por campaña y día.
-- Snapshot/commit en Redis con TTL (36h).
+Guardarraíles de presupuesto/cotas por campaña/día (en Redis).
+- snapshot(): lectura de contadores.
+- decide(): 'allow'/'degrade' según proyección de consumo.
+- commit(): incrementa contadores con TTL ~36h.
 """
 
 BudgetAction = Literal["allow", "degrade", "deny"]
@@ -29,6 +31,7 @@ class BudgetGuardrails:
 
     def snapshot(self, campaign_id: str) -> dict:
         """Lee los contadores actuales (usd, llm, emb)."""
+
         data = redis.hgetall(self._keys(campaign_id))
         snap = {}
         for k, v in data.items():

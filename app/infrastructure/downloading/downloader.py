@@ -2,8 +2,9 @@ import yt_dlp
 import os
 
 """
-Descarga de videos (TikTok u otros) a MP4 con yt_dlp.
-Incluye fallback a cookies de navegador para TikTok si es necesario.
+Descarga de videos (TikTok/otros) a MP4 con yt_dlp.
+- Intenta headers mobile y, para TikTok, fallback con cookies del navegador.
+- Limita tamaño y timeout para evitar jobs colgados.
 """
 
 MOBILE_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) "
@@ -12,16 +13,10 @@ MOBILE_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) "
 
 def descargar_video(url, output_folder="videos", size_mb_limit=200, timeout_s=30):
     """
-    Descarga un video a `output_folder` usando yt_dlp.
-
-    Args:
-        url: URL del video.
-        output_folder: carpeta destino.
-        size_mb_limit: límite duro de tamaño.
-        timeout_s: timeout de socket.
+    Descarga `url` a MP4 en `output_folder`.
 
     Returns:
-        ruta absoluta del archivo descargado o None si falla.
+        Ruta absoluta del archivo o None si falla (tras reintentos/fallbacks).
     """
 
     if not os.path.exists(output_folder):

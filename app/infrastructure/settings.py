@@ -36,6 +36,18 @@ class Settings(BaseSettings):
     # Activar/desactivar BudgetGuardRails
     BUDGET_GUARDRAILS_ENABLED: bool = False
 
+    # PostgreSQL
+    PG_ENABLED: bool = False
+    PG_DSN: str | None = None
+
+    # Keyframes cache (FS)
+    KEYFRAME_CACHE_ENABLED: bool = True
+    KEYFRAMES_DIR: str = "/data/keyframes"
+
+    # Audio / ASR
+    AUDIO_ASR_ENABLED: bool = True  # usa Whisper si hay OPENAI_API_KEY
+    AUDIO_TARGET_SR: int = 16000
+
     class Config:
         env_file = ".env"
 
