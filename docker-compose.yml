@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: inklop-postgres
+    environment:
+      POSTGRES_DB: inklop
+      POSTGRES_USER: inklop
+      POSTGRES_PASSWORD: inklop
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./app/infrastructure/pg/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  api:
+    build: .
+    container_name: inklop-api
+    env_file: .env
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    volumes:
+      - ./data:/data
+
+volumes:
+  pgdata:
