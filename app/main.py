@@ -1,10 +1,20 @@
 from fastapi import FastAPI
-from app.api.endpoints import router
+from app.api.http.routers.evaluate import router as evaluate_router
+from app.api.http.routers.dev_features import router as dev_features_router
 
-app = FastAPI()
-app.include_router(router)
+"""
+Punto de entrada de la app FastAPI.
+Incluye routers públicos y de desarrollo.
+"""
 
-if __name__ == "__main__":
-	import uvicorn
-	print("Servidor iniciado en http://127.0.0.1:8000")
-	uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+app = FastAPI(title="Inklop Video Inspector", version="0.1.0")
+
+# Rutas públicas y de soporte
+app.include_router(evaluate_router, prefix="/api")
+app.include_router(dev_features_router, prefix="/api")
+
+@app.get("/health")
+def health():
+    """Healthcheck simple para liveness/readiness."""
+
+    return {"ok": True}
