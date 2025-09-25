@@ -43,3 +43,26 @@ class EvaluateResponse(BaseModel):
             }]
         }
     }
+
+class ScriptResponse(BaseModel):
+    """
+    Respuesta de generación de guion (stateless).
+
+    Campos:
+      - format: formato del campo `script` (por ahora "markdown").
+      - has_script: bandera de éxito.
+      - script: contenido en el formato declarado.
+    """
+    format: str
+    has_script: bool
+    script: str
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "format": "markdown",
+                "has_script": True,
+                "script": "### Hook\n...\n### Desarrollo\n...\n### CTA\n..."
+            }]
+        }
+    }

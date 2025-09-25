@@ -1,6 +1,6 @@
 from pydantic import BaseModel, HttpUrl, Field, AliasChoices
 from pydantic import ConfigDict
-from typing import List
+from typing import List, Optional
 
 class EvaluateRequest(BaseModel):
     """
@@ -33,6 +33,26 @@ class EvaluateRequest(BaseModel):
                 "video_url": "https://www.tiktok.com/@user/video/1234567890",
                 "candidates": ["https://www.tiktok.com/@user/video/987654321"],
                 "descripcion": "Buscamos clips con facecam arriba, gameplay abajo y subtítulos ES/EN."
+            }
+        ]
+    })
+
+class GenerateScriptRequest(BaseModel):
+    """
+    Entrada directa para generar guion.
+    """
+    description: str = Field(..., description="Descripción/brief de la campaña")
+    category: str = Field(..., description="Categoría de la campaña (ej. GAMING, BEAUTY, FOOD, etc.)")
+    creator_type: str = Field(..., description="Tipo de creador (UGC | CLIPPER)")
+    prompt: Optional[str] = Field(None, description="Instrucciones extra opcionales")
+
+    model_config = ConfigDict(json_schema_extra={
+        "examples": [
+            {
+                "description": "Bebida energética enfocada a gamers; destacar sabor y energía sin crash.",
+                "category": "GAMING",
+                "creator_type": "UGC",
+                "prompt": "Evita claims médicos; CTA a link en bio."
             }
         ]
     })

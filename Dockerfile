@@ -1,17 +1,33 @@
 FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Evita .pyc y asegura logs flush
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
+# Crea usuario no-root
+RUN adduser --disabled-password --gecos "" appuser
+
+# Dependencias del sistema necesarias (ffmpeg + build tools mínimos)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
+    ffmpeg build-essential curl \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY requirements.txt ./
+# Instala primero dependencias para cacheo
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copia el resto del código
 COPY . .
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Baja privilegios
+USER appuser
+
+# Railway inyecta $PORT; deja fallback local a 8000
+ENV PORT=8000
+# Control opcional del nro de workers via env
+ENV UVICORN_WORKERS=1
+
+# Comando de arranque (no hardcodees el puerto)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers ${UVICORN_WORKERS}"]
