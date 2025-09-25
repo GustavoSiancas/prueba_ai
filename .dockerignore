@@ -1,0 +1,13 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.venv
+.env
+.env.*
+data/
+dist/
+build/
+.cache/
