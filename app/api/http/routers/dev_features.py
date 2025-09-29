@@ -3,6 +3,8 @@ from typing import Optional
 from pydantic import HttpUrl
 
 from app.infrastructure.pg.dao import pg_get_by_url, pg_recent_candidates
+from app.application.services.retention_cleanup import RetentionCleaner
+from app.infrastructure.settings import get_settings
 
 router = APIRouter(tags=["_dev"])
 
@@ -72,3 +74,15 @@ def dev_features(
             "created_at": it.get("created_at"),
         })
     return {"count": len(out), "items": out}
+
+@router.post(
+    "/_dev/cleanup-run",
+    summary="Forzar ejecución del cleanup de retención (ADMIN/QA)",
+    description="Ejecuta una pasada del eliminador de campañas vencidas."
+)
+def cleanup_run():
+    cleaner = RetentionCleaner(settings=get_settings())
+    # Ejecutamos una pasada sin loop
+    import anyio
+    anyio.run(cleaner._run_once)
+    return {"status": "ok"}
