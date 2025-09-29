@@ -14,7 +14,10 @@ from app.infrastructure.nlp.vlm_summary import (
     _uniform_keyframes,
 )
 from app.infrastructure.nlp.align_judge import comparar_descripcion_con_resumen_ia
-from app.infrastructure.pg.dao import pg_get_by_url, pg_save_video_features, pg_recent_candidates
+from app.infrastructure.pg.dao import (
+    pg_get_by_url, pg_save_video_features, pg_recent_candidates,
+    pg_upsert_campaign_end_date
+)
 from app.infrastructure.audio.ffmpeg import extract_wav_mono16k
 from app.infrastructure.audio.transcribe import transcribe_audio
 
@@ -215,6 +218,13 @@ class EvaluateService:
                 cmp_json = json.loads(cmp_raw)
             except Exception:
                 cmp_json = {"aproved": False, "match_percent": 0.0, "reasons": "Respuesta IA inválida."}
+
+            if getattr(req, "end_date", None):
+                try:
+                    pg_upsert_campaign_end_date(req.campaign_id, req.end_date)
+                except Exception as _e:
+                    # No abortamos la evaluación por esto; solo log si quieres.
+                    pass
 
             # --- 6) Persistencia SOLO si aprueba (no guardamos rechazados)
             is_approved = bool(cmp_json.get("aproved", False))

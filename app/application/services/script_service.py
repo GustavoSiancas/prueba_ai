@@ -43,12 +43,12 @@ class ScriptGeneratorService:
         content = FENCE_END.sub("", content).strip()
         return content
 
-    def generate_script(self, description: str, category: str, creator_type: str, extra_prompt: Optional[str]) -> str:
+    def generate_script(self, description: str, category: str, creator_type: str, requirements: Optional[str]) -> str:
         """
         Genera el guion final llamando al modelo de lenguaje.
 
         Parámetros:
-          description, category, creator_type, extra_prompt: ver docstring del template.
+          description, category, creator_type, requirements: ver docstring del template.
 
         Retorna:
          El contenido del guion.
@@ -61,10 +61,10 @@ class ScriptGeneratorService:
             raise RuntimeError("Parámetros insuficientes para generar el guion")
         if len(description) > 2000:
             raise RuntimeError("Descripción demasiado larga (>2000 caracteres)")
-        if extra_prompt and len(extra_prompt) > 1000:
-            raise RuntimeError("Prompt extra demasiado largo (>1000 caracteres)")
+        if requirements and len(requirements) > 1000:
+            raise RuntimeError("Requisitos demasiado largos (>1000 caracteres)")
 
-        prompt = build_campaign_script_prompt(description, category, creator_type, extra_prompt)
+        prompt = build_campaign_script_prompt(description, category, creator_type, requirements)
         client = self._client()
 
         resp = client.chat.completions.create(

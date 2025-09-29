@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Query, HTTPException, Path
-from typing import Optional
+from fastapi import APIRouter, HTTPException
 
 from app.api.http.schemas.requests import GenerateScriptRequest
 from app.api.http.schemas.responses import ScriptResponse
@@ -13,7 +12,7 @@ router = APIRouter(tags=["campaign"])
     summary="Generar guion de campaña",
     description=(
         "Genera un guion ideal de video en base a descripción, categoría y tipo de creador, "
-        "más un prompt extra opcional. Devuelve Markdown crudo"
+        "más los requisitos de la campaña. Devuelve Markdown crudo"
     ),
 )
 def generate_script_stateless(payload: GenerateScriptRequest):
@@ -35,7 +34,7 @@ def generate_script_stateless(payload: GenerateScriptRequest):
             description=payload.description,
             category=payload.category,
             creator_type=payload.creator_type,
-            extra_prompt=payload.prompt,
+            requirements=payload.requirements,
         )
         return ScriptResponse(format="markdown", has_script=True, script=script_md)
     except Exception as e:
