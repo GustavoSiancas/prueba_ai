@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
+    # Borrado Automático de huellas (Postgres)
+    CLEANUP_INTERVAL_MIN: int = 60  # corre cada 60 min por defecto
 
 @lru_cache
 def get_settings() -> Settings:

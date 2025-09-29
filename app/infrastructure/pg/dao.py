@@ -1,4 +1,6 @@
 import numpy as np
+from datetime import date
+import os, shutil
 from app.infrastructure.pg.client import get_pool
 from app.infrastructure.bitpack import pack_phash64, pack_bool_bits, unpack_phash64, unpack_bool_bits
 
@@ -84,3 +86,43 @@ def pg_recent_candidates(campaign_id: str, k: int = 50):
             "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at),
         })
     return out
+
+def pg_upsert_campaign_end_date(campaign_id: str, end_date: date) -> None:
+    """Crea/actualiza fecha fin para la campaña."""
+    with get_pool().connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO campaign_retention (campaign_id, end_date)
+            VALUES (%s, %s)
+            ON CONFLICT (campaign_id)
+            DO UPDATE SET end_date = EXCLUDED.end_date, updated_at = now()
+            """,
+            (campaign_id, end_date)
+        )
+
+def pg_expired_campaign_ids(as_of: date):
+    """Lista campaign_id cuyo end_date <= as_of."""
+    with get_pool().connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT campaign_id FROM campaign_retention WHERE end_date <= %s",
+            (as_of,)
+        )
+        rows = cur.fetchall()
+    return [r[0] for r in rows]
+
+def pg_delete_videos_by_campaign(campaign_id: str):
+    """
+    Borra videos de una campaña y retorna los video_id eliminados (para limpiar FS).
+    """
+    with get_pool().connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM video_features WHERE campaign_id = %s RETURNING video_id",
+            (campaign_id,)
+        )
+        rows = cur.fetchall()
+    return [r[0] for r in rows]
+
+def pg_delete_campaign_retention(campaign_id: str):
+    """Elimina la fila de retención (se usa después de limpiar)."""
+    with get_pool().connection() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM campaign_retention WHERE campaign_id = %s", (campaign_id,))
