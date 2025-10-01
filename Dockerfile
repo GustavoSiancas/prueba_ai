@@ -30,4 +30,4 @@ ENV PORT=8000
 ENV UVICORN_WORKERS=1
 
 # Comando de arranque (no hardcodees el puerto)
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers ${UVICORN_WORKERS}"]
+CMD ["sh", "-c", "python -m app.scripts.run_sql_migrations && uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers ${UVICORN_WORKERS}"]
